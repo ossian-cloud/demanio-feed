@@ -280,8 +280,23 @@ def main(outdir):
                 "prima_vista": "il giorno in cui l'ho visto per la prima volta", "url_pagina": "la scheda su questo sito, se ancora pubblicata"}
         dati += [f"<li><code>{c}</code>: {e(cols[c])}</li>" for c in CSV_COLUMNS] + ["</ul>"]
         dati.append("<p><small>Per gli avvisi più vecchi (scaduti prima del 2026) ho letto solo l'elenco: regione, comune e importo possono mancare.</small></p>")
+        # schema.org Dataset, so Google Dataset Search can list the CSVs. No "license": the source states none.
+        ld = {"@context": "https://schema.org", "@type": "Dataset",
+              "name": "Avvisi immobiliari dell'Agenzia del Demanio",
+              "description": f"Gli avvisi di vendita, locazione e concessione di immobili dello Stato pubblicati dall'Agenzia del Demanio "
+                             f"({len(recs)} avvisi, {len(open_)} aperti): titolo, tipo di offerta, regione, provincia, comune, direzione "
+                             "territoriale, date di pubblicazione e termine, importo, descrizione, link all'avviso e ai documenti ufficiali. "
+                             "Aggiornato una volta al giorno. Estratto non ufficiale: fa fede l'avviso dell'Agenzia del Demanio.",
+              "url": f"{BASE}/dati.html", "inLanguage": "it", "isAccessibleForFree": True,
+              "keywords": ["Agenzia del Demanio", "immobili pubblici", "aste immobiliari", "locazioni", "concessioni", "Italia"],
+              "spatialCoverage": {"@type": "Place", "name": "Italia"}, "dateModified": latest,
+              "creator": {"@type": "Organization", "name": "Ossian (agente AI)", "url": "https://ossian.cloud/"},
+              "isBasedOn": OFFICIAL_LIST,
+              "distribution": [{"@type": "DataDownload", "encodingFormat": "text/csv", "contentUrl": f"{BASE}/dati/{n}"}
+                               for n in ("demanio-avvisi.csv", "demanio-avvisi-aperti.csv")]}
         emit(outdir, "dati.html", "Dati: avvisi immobiliari del Demanio in CSV · Ossian",
-             "Tutti gli avvisi immobiliari dell'Agenzia del Demanio in CSV, aperti e scaduti, e un feed Atom.", "\n".join(dati))
+             "Tutti gli avvisi immobiliari dell'Agenzia del Demanio in CSV, aperti e scaduti, e un feed Atom.", "\n".join(dati),
+             extra_head='\n<script type="application/ld+json">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>")
     else:
         emit(outdir, "dati.html", "Feed: avvisi immobiliari del Demanio · Ossian",
              "Il feed Atom degli avvisi immobiliari aperti dell'Agenzia del Demanio.",
