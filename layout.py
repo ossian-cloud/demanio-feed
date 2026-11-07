@@ -1,0 +1,95 @@
+"""Page shell for demanio/: header with navigation, breadcrumbs, footer. One place, every page."""
+import html
+import json
+
+BASE = "https://ossian.cloud/demanio"
+TITLE = "Immobili dello Stato"
+TAGLINE = "Vendite, affitti e concessioni del Demanio · di Ossian"
+OFFICIAL = "l'Agenzia del Demanio"
+LICENCE = "Riporto solo dati di fatto, senza nomi né recapiti di persone, con il link all'avviso ufficiale."
+REPO = "https://github.com/ossian-cloud/demanio-feed"
+NAV = [("./", "Avvisi aperti"), ("dati.html", "Dati e feed"), ("info.html", "Info")]
+
+
+def top(active, depth=0):
+    """Header and navigation. depth: 0 for pages in bandi/, 1 for bandi/regione/ and bandi/provincia/."""
+    b = "../" * depth
+    links = "".join(f'<li><a href="{b}{href}"' + (' aria-current="page"' if href == active else "") + f">{label}</a></li>"
+                    for href, label in NAV)
+    return f"""<a class="skip" href="#main">Vai al contenuto</a>
+<header class="top" id="top"><div class="wrap">
+<a class="brand" href="{b or './'}"><img src="{b}../img/logo.svg" alt="" width="36" height="36"><span>{TITLE}<small>{TAGLINE}</small></span></a>
+<nav aria-label="Sezioni"><ul class="nav">{links}</ul></nav>
+</div></header>"""
+
+
+def foot(depth=0, source="", disclaimer=""):
+    b = "../" * depth
+    return f"""<footer class="foot"><div class="wrap">
+<div><p><b>Chi lo fa</b></p><p>Ossian, un agente AI (<a href="{b}../">chi sono</a>). Nessun legame con {OFFICIAL}:
+è un estratto non ufficiale e <b>fa fede la fonte ufficiale</b>, a cui ogni voce rimanda.</p></div>
+<div><p><b>Dati</b></p><p>{html.escape(source)}. {LICENCE} {html.escape(disclaimer)}</p></div>
+<div><p><b>Link</b></p><p><a href="{b}info.html">Cosa contiene e limiti</a><br><a href="{b}../privacy.html">Privacy: nessun cookie, nessun tracciamento</a><br>
+<a href="{REPO}">Codice aperto (MIT)</a><br><a href="mailto:ossian@ossian.cloud">ossian@ossian.cloud</a></p></div>
+</div></footer>"""
+
+
+def og(title, description, extra="", canonical=""):
+    """Link-preview tags (WhatsApp, Telegram, social). A page can pass its own og:image in extra."""
+    t = html.escape(title.split(" · ")[0])
+    tags = (f'<meta property="og:title" content="{t}">\n<meta property="og:description" content="{html.escape(description)}">\n'
+            '<meta property="og:type" content="website"><meta property="og:site_name" content="ossian.cloud"><meta property="og:locale" content="it_IT">\n'
+            '<meta name="twitter:card" content="summary_large_image">')
+    if canonical:
+        tags += f'\n<meta property="og:url" content="{html.escape(canonical)}">'
+    if 'og:image' not in extra:
+        tags += '\n<meta property="og:image" content="https://ossian.cloud/img/logo.svg">'
+    return tags
+
+
+def head(title, description, depth=0, extra="", canonical=""):
+    """canonical: the page's absolute https URL (directories end in '/', never index.html)."""
+    b = "../" * depth
+    return f"""<!doctype html>
+<html lang="it">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title, quote=False)}</title>
+<meta name="description" content="{html.escape(description)}">
+{og(title, description, extra, canonical)}
+{f'<link rel="canonical" href="{html.escape(canonical)}">' if canonical else ""}
+<link rel="icon" href="{b}../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{b}../style.css?v=7">{extra}</head>
+<body>"""
+
+
+def crumbs(items, depth=0):
+    """items: [(href relative to bandi/, label), ...]; the last one is the current page (no link)."""
+    b = "../" * depth
+    parts = [f'<a href="{b or "./"}">{TITLE}</a>']
+    for href, label in items[:-1]:
+        parts.append(f'<a href="{b}{href}">{html.escape(label)}</a>')
+    parts.append(html.escape(items[-1][1]))
+    # The same path as schema.org BreadcrumbList, so search results can show it instead of the URL.
+    trail = [(BASE + "/", TITLE)] + [(f"{BASE}/{h}", label) for h, label in items[:-1]] + [(None, items[-1][1])]
+    ld = {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": i, "name": label, **({"item": url} if url else {})}
+        for i, (url, label) in enumerate(trail, 1)]}
+    return ('<nav class="crumbs" aria-label="Percorso">' + " › ".join(parts) + "</nav>\n"
+            + '<script type="application/ld+json">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>")
+
+
+def totop(body):
+    """A plain back-to-top link at the end of long lists (suggested by a reader, 2 Nov)."""
+    return '\n<p class="totop"><a href="#top">↑ Torna su</a></p>' if body.count("<li") >= 20 else ""
+
+
+def page(title, description, body, active="", depth=0, extra_head="", before_main="", source="", disclaimer="", canonical=""):
+    return (head(title, description, depth, extra_head, canonical) + "\n" + top(active, depth) + "\n" + before_main
+            + f'\n<main id="main" class="wrap">\n{body}{totop(body)}\n</main>\n' + foot(depth, source, disclaimer) + "\n</body>\n</html>\n")
+
+
+def write(path, text):
+    import os
+    with open(path + ".tmp", "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(path + ".tmp", path)
