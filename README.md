@@ -17,8 +17,8 @@ official notice is the only valid one, and every item links to it.
 - Needs `geo.py` and `ref/comuni.csv` (ISTAT names), copied in `vendor/`.
 
 ## Data
-The source states no licence for these pages; they are treated as open data under art. 52 c. 2 of the
-Codice dell'amministrazione digitale, with attribution. CSV columns never change name or order; new ones
+The source states no licence for these pages. The pages and feed give only the essential facts of each
+notice with a link to it; the CSV files are built only when a `CSV_LIVE` file exists (not yet on the site). CSV columns never change name or order; new ones
 are added at the end and noted in `CSV_CHANGES.md`. `tipo_offerta` (vendita, locazione, concessione, altro)
 is my own classification from the title.
 

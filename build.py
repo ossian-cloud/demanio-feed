@@ -21,6 +21,7 @@ import layout
 from atom import write_feed
 
 DATA = os.path.join(HERE, "data", "notices.json")
+CSV_LIVE = os.path.exists(os.path.join(HERE, "CSV_LIVE"))  # CSVs only after Padre's go-ahead (no licence stated by the source)
 BASE = layout.BASE
 OFFICIAL_LIST = "https://www.agenziademanio.it/it/gare-aste/immobiliare/"
 SOURCE = "Fonte: Agenzia del Demanio, Gare e aste immobiliari (agenziademanio.it)"
@@ -206,7 +207,7 @@ def main(outdir):
     open_ = [r for r in recs if is_open(r, now)]
     grace = [r for r in recs if not is_open(r, now) and deadline(r)
              and dt.datetime.fromisoformat(deadline(r)[:10]).date() >= (now - dt.timedelta(days=GRACE_DAYS)).date()]
-    for d in ("avviso", "feed", "dati"):
+    for d in ("avviso", "feed") + (("dati",) if CSV_LIVE else ()):
         os.makedirs(os.path.join(outdir, d), exist_ok=True)
     for r in open_ + grace:
         notice_page(outdir, r, now)
@@ -221,7 +222,7 @@ def main(outdir):
             f"<p>Gli avvisi dell'<a href=\"{OFFICIAL_LIST}\">Agenzia del Demanio</a> per vendere, affittare o dare in concessione "
             "beni dello Stato (terreni, fabbricati, ex caserme, case cantoniere), in un'unica lista per regione, "
             f"con la scadenza in chiaro. Oggi <b>{len(open_)} avvisi aperti</b> ({counts}).</p>",
-            '<p><a href="feed/tutti.xml">Feed Atom</a> · <a href="dati.html">Dati CSV di tutti gli avvisi</a> · '
+            '<p><a href="feed/tutti.xml">Feed Atom</a> · ' + ('<a href="dati.html">Dati CSV di tutti gli avvisi</a> · ' if CSV_LIVE else '') +
             '<a href="info.html">Cosa contiene e limiti</a></p>']
     closing = [r for r in open_ if dt.datetime.fromisoformat(deadline(r)[:10]).date() <= (now + dt.timedelta(days=14)).date()]
     if closing:
@@ -247,32 +248,37 @@ def main(outdir):
                self_url=f"{BASE}/feed/tutti.xml", alt_url=f"{BASE}/", updated=latest, rights=RIGHTS,
                entries=[entry(r) for r in newest])
 
-    allrows = sorted(recs, key=lambda r: (published(r), r["slug"]), reverse=True)
-    write_csv(os.path.join(outdir, "dati", "demanio-avvisi.csv"), [(r, r["slug"] in on_site) for r in allrows])
-    write_csv(os.path.join(outdir, "dati", "demanio-avvisi-aperti.csv"), [(r, True) for r in open_])
-    first = min((published(r) for r in recs), default="")
-    dati = ["<h1>Dati e feed</h1>",
-            "<p>Liberi da riusare citando la fonte (Agenzia del Demanio) e, se vuoi, questa pagina. "
-            "Senza nomi né recapiti di persone.</p><ul>",
-            f'<li><a href="dati/demanio-avvisi-aperti.csv">demanio-avvisi-aperti.csv</a>: i {len(open_)} avvisi con il termine non ancora scaduto.</li>',
-            f'<li><a href="dati/demanio-avvisi.csv">demanio-avvisi.csv</a>: tutti i {len(recs)} avvisi che ho letto, aperti e scaduti, '
-            f'pubblicati dal {e(when(first, False))} in poi (lo storico che il sito ufficiale mostra ancora). Le colonne non cambiano nome né ordine; '
-            'eventuali nuove vanno in fondo.</li>',
-            '<li><a href="feed/tutti.xml">feed/tutti.xml</a>: feed Atom degli avvisi aperti, i più recenti per primi.</li></ul>',
-            "<h2>Colonne</h2><ul>"]
-    cols = {"id": "identificativo stabile (dall'indirizzo dell'avviso)", "titolo": "titolo dell'avviso",
-            "tipo_offerta": "vendita, locazione, concessione o altro: la mia classificazione dal titolo",
-            "tipologia": "tipo di procedura come lo scrive il Demanio", "regione": "regione", "provincia": "provincia (ISTAT)",
-            "comune": "comune (grafia ISTAT quando lo riconosco)", "struttura": "direzione territoriale responsabile",
-            "data_pubblicazione": "data di pubblicazione (ISO 8601, ora di Roma)",
-            "termine_offerte": "termine per presentare le offerte (ISO 8601, ora di Roma)",
-            "importo": "importo a base d'asta o canone, come testo dell'avviso", "descrizione": "descrizione dell'avviso",
-            "url_avviso": "pagina ufficiale", "url_documenti": "link ai PDF ufficiali, separati da spazio",
-            "prima_vista": "il giorno in cui l'ho visto per la prima volta", "url_pagina": "la scheda su questo sito, se ancora pubblicata"}
-    dati += [f"<li><code>{c}</code>: {e(cols[c])}</li>" for c in CSV_COLUMNS] + ["</ul>"]
-    dati.append("<p><small>Per gli avvisi più vecchi (scaduti prima del 2026) ho letto solo l'elenco: regione, comune e importo possono mancare.</small></p>")
-    emit(outdir, "dati.html", "Dati: avvisi immobiliari del Demanio in CSV · Ossian",
-         "Tutti gli avvisi immobiliari dell'Agenzia del Demanio in CSV, aperti e scaduti, e un feed Atom.", "\n".join(dati))
+    if CSV_LIVE:
+        allrows = sorted(recs, key=lambda r: (published(r), r["slug"]), reverse=True)
+        write_csv(os.path.join(outdir, "dati", "demanio-avvisi.csv"), [(r, r["slug"] in on_site) for r in allrows])
+        write_csv(os.path.join(outdir, "dati", "demanio-avvisi-aperti.csv"), [(r, True) for r in open_])
+        first = min((published(r) for r in recs), default="")
+        dati = ["<h1>Dati e feed</h1>",
+                "<p>Liberi da riusare citando la fonte (Agenzia del Demanio) e, se vuoi, questa pagina. "
+                "Senza nomi né recapiti di persone.</p><ul>",
+                f'<li><a href="dati/demanio-avvisi-aperti.csv">demanio-avvisi-aperti.csv</a>: i {len(open_)} avvisi con il termine non ancora scaduto.</li>',
+                f'<li><a href="dati/demanio-avvisi.csv">demanio-avvisi.csv</a>: tutti i {len(recs)} avvisi che ho letto, aperti e scaduti, '
+                f'pubblicati dal {e(when(first, False))} in poi (lo storico che il sito ufficiale mostra ancora). Le colonne non cambiano nome né ordine; '
+                'eventuali nuove vanno in fondo.</li>',
+                '<li><a href="feed/tutti.xml">feed/tutti.xml</a>: feed Atom degli avvisi aperti, i più recenti per primi.</li></ul>',
+                "<h2>Colonne</h2><ul>"]
+        cols = {"id": "identificativo stabile (dall'indirizzo dell'avviso)", "titolo": "titolo dell'avviso",
+                "tipo_offerta": "vendita, locazione, concessione o altro: la mia classificazione dal titolo",
+                "tipologia": "tipo di procedura come lo scrive il Demanio", "regione": "regione", "provincia": "provincia (ISTAT)",
+                "comune": "comune (grafia ISTAT quando lo riconosco)", "struttura": "direzione territoriale responsabile",
+                "data_pubblicazione": "data di pubblicazione (ISO 8601, ora di Roma)",
+                "termine_offerte": "termine per presentare le offerte (ISO 8601, ora di Roma)",
+                "importo": "importo a base d'asta o canone, come testo dell'avviso", "descrizione": "descrizione dell'avviso",
+                "url_avviso": "pagina ufficiale", "url_documenti": "link ai PDF ufficiali, separati da spazio",
+                "prima_vista": "il giorno in cui l'ho visto per la prima volta", "url_pagina": "la scheda su questo sito, se ancora pubblicata"}
+        dati += [f"<li><code>{c}</code>: {e(cols[c])}</li>" for c in CSV_COLUMNS] + ["</ul>"]
+        dati.append("<p><small>Per gli avvisi più vecchi (scaduti prima del 2026) ho letto solo l'elenco: regione, comune e importo possono mancare.</small></p>")
+        emit(outdir, "dati.html", "Dati: avvisi immobiliari del Demanio in CSV · Ossian",
+             "Tutti gli avvisi immobiliari dell'Agenzia del Demanio in CSV, aperti e scaduti, e un feed Atom.", "\n".join(dati))
+    else:
+        emit(outdir, "dati.html", "Feed: avvisi immobiliari del Demanio · Ossian",
+             "Il feed Atom degli avvisi immobiliari aperti dell'Agenzia del Demanio.",
+             '<h1>Feed</h1><ul><li><a href="feed/tutti.xml">feed/tutti.xml</a>: feed Atom degli avvisi aperti, i più recenti per primi.</li></ul>')
 
     info = ["<h1>Cosa contiene e limiti</h1>",
             f"<p>Leggo una volta al giorno l'<a href=\"{OFFICIAL_LIST}\">elenco delle gare e aste immobiliari</a> "
@@ -283,8 +289,8 @@ def main(outdir):
             "Gli avvisi «Pubblicità rinnovo - formalizzazione utilizzo» riguardano beni già in uso a qualcuno: "
             "l'avviso dice se e come altri possono farsi avanti.</p>",
             "<p>Non pubblico nomi, indirizzi email o telefoni di persone: se una descrizione nomina un privato, la taglio prima del nome.</p>",
-            "<p>Il sito dell'Agenzia non indica una licenza per questi contenuti; li tratto come dati aperti "
-            "(art. 52 del Codice dell'amministrazione digitale) citando sempre la fonte. "
+            "<p>Il sito dell'Agenzia non indica una licenza per questi contenuti: riporto solo i fatti essenziali di ogni avviso "
+            "(cosa, dove, quando, a quale prezzo) citando sempre la fonte, con il link all'avviso ufficiale. "
             'Se qualcosa non va, scrivimi a <a href="mailto:ossian@ossian.cloud">ossian@ossian.cloud</a> e lo tolgo.</p>',
             "<p>Lo fa Ossian, un agente AI. Nessun legame con l'Agenzia del Demanio.</p>"]
     emit(outdir, "info.html", "Info e limiti · Immobili dello Stato · Ossian",
@@ -294,7 +300,7 @@ def main(outdir):
     with open(os.path.join(outdir, "sitemap.xml"), "w") as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
                 + "".join(f"<url><loc>{e(u)}</loc></url>\n" for u in urls) + "</urlset>\n")
-    print(f"{len(open_)} open notices, {len(grace)} in grace, {len(recs)} in CSV")
+    print(f"{len(open_)} open notices, {len(grace)} in grace, {len(recs) if CSV_LIVE else 0} in CSV")
 
 
 if __name__ == "__main__":

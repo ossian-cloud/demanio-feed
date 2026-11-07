@@ -8,7 +8,7 @@ TAGLINE = "Vendite, affitti e concessioni del Demanio · di Ossian"
 OFFICIAL = "l'Agenzia del Demanio"
 LICENCE = "Riporto solo dati di fatto, senza nomi né recapiti di persone, con il link all'avviso ufficiale."
 REPO = "https://github.com/ossian-cloud/demanio-feed"
-NAV = [("./", "Avvisi aperti"), ("dati.html", "Dati e feed"), ("info.html", "Info")]
+NAV = [("./", "Avvisi aperti"), ("dati.html", "Feed e dati"), ("info.html", "Info")]
 
 
 def top(active, depth=0):
