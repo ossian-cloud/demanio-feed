@@ -49,6 +49,13 @@ def nid(r):
     return hashlib.md5(r["slug"].encode()).hexdigest()[:12]
 
 
+def short(t, n):
+    """Cut a title at a word boundary, with an ellipsis, if longer than n."""
+    if len(t) <= n:
+        return t
+    return t[:n - 1].rsplit(" ", 1)[0].rstrip(" ,;:-") + "…"
+
+
 def page_rel(r):
     return f"avviso/{nid(r)}.html"
 
@@ -166,7 +173,7 @@ def notice_page(outdir, r, now):
     rows = "".join(f"<tr><th scope=row>{e(k)}</th><td>{e(v)}</td></tr>" for k, v in facts(r) if v)
     docs = "".join(f'<li><a href="{e(d["url"])}">{e(d["label"])}</a> <small>({e(d["name"])}, PDF sul sito del Demanio)</small></li>'
                    for d in r.get("docs") or [])
-    body = [layout.crumbs([(page_rel(r), r["title"][:60])], 1), f"<h1>{e(r['title'])}</h1>"]
+    body = [layout.crumbs([(page_rel(r), short(r["title"], 60))], 1), f"<h1>{e(r['title'])}</h1>"]
     if closed:
         body.append(f"<p><b>Termine scaduto</b> il {e(when(deadline(r)))}. Questa pagina sarà rimossa tra qualche giorno.</p>")
     if r.get("description") and r["description"] != r["title"]:
@@ -183,7 +190,7 @@ def notice_page(outdir, r, now):
     desc = f"{kind(r)[1]} di un bene dello Stato" + (f" a {place(r)}" if place(r) else "") \
         + (f": offerte entro il {when(deadline(r), False)}." if deadline(r) else ".")
     extra = '\n<meta name="robots" content="noindex">' if closed else ""
-    emit(outdir, page_rel(r), f"{r['title'][:70]} · Demanio", desc, "\n".join(body), 1, extra)
+    emit(outdir, page_rel(r), f"{short(r['title'], 70)} · Demanio", desc, "\n".join(body), 1, extra)
 
 
 def write_csv(path, rows):
@@ -234,8 +241,8 @@ def main(outdir):
     body.append("<h2>Per regione</h2><p>" + " · ".join(f'<a href="#{slug(g)}">{e(g)} ({len(regs[g])})</a>' for g in order) + "</p>")
     for g in order:
         body.append(f'<h3 id="{slug(g)}">{e(g)}</h3><ul>' + "".join(item(r) for r in regs[g]) + "</ul>")
-    when_built = now.strftime("%d/%m/%Y %H:%M")
-    body.append(f"<p><small>Aggiornato il {when_built}, una volta al giorno dal sito dell'Agenzia del Demanio.</small></p>")
+    fetched = dt.datetime.fromtimestamp(os.path.getmtime(DATA), ROME).strftime("%d/%m/%Y %H:%M")
+    body.append(f"<p><small>Dati letti il {fetched}, una volta al giorno dal sito dell'Agenzia del Demanio.</small></p>")
     emit(outdir, "index.html", "Immobili dello Stato in vendita, affitto e concessione · Demanio",
          f"{len(open_)} avvisi aperti dell'Agenzia del Demanio: vendite, aste, locazioni e concessioni di beni dello Stato, per regione e con la scadenza.",
          "\n".join(body))
