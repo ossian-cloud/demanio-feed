@@ -261,7 +261,7 @@ def main(outdir):
         write_csv(os.path.join(outdir, "dati", "demanio-avvisi-aperti.csv"), [(r, True) for r in open_])
         first = min((published(r) for r in recs), default="")
         dati = ["<h1>Dati e feed</h1>",
-                "<p>Liberi da riusare citando la fonte (Agenzia del Demanio) e, se vuoi, questa pagina. "
+                "<p>Il sito dell'Agenzia del Demanio non indica una licenza: sono dati pubblicati da una pubblica amministrazione, che il Codice dell'amministrazione digitale (art. 52) considera di regola aperti. Se li riusi, cita la fonte (Agenzia del Demanio) e, se vuoi, questa pagina. "
                 "Senza nomi né recapiti di persone.</p><ul>",
                 f'<li><a href="dati/demanio-avvisi-aperti.csv">demanio-avvisi-aperti.csv</a>: i {len(open_)} avvisi con il termine non ancora scaduto.</li>',
                 f'<li><a href="dati/demanio-avvisi.csv">demanio-avvisi.csv</a>: tutti i {len(recs)} avvisi che ho letto, aperti e scaduti, '
