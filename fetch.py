@@ -133,9 +133,16 @@ def parse_detail(page):
     if not m:
         return None
     body = m.group(1)
-    for cls, val in re.findall(r'<p class="(\w+)">\s*<span[^>]*>[^<]*</span>(.*?)</p>', body, re.S):
-        if cls in FIELDS:
-            r[FIELDS[cls]] = text(val)
+    # one chunk per field paragraph, up to its last </p>: a paragraph can hold nested <p> (an extension note)
+    for chunk in re.split(r'<p class="', body)[1:]:
+        m = re.match(r'(\w+)">\s*<span[^>]*>[^<]*</span>(.*)</p>', chunk, re.S)
+        if not m or m.group(1) not in FIELDS:
+            continue
+        key, val = FIELDS[m.group(1)], text(m.group(2))
+        if key == "description" and r.get(key) and val:
+            val = r[key].rstrip(" .") + ". " + val  # several description paragraphs: keep them all
+        if val or key not in r:
+            r[key] = val
     for k in ("published", "deadline"):
         if k in r:
             r[k] = java_date(r[k]) or it_date(r[k]) or r[k]  # Italian when asked in Italian
@@ -162,6 +169,7 @@ def main():
                     help="fetch detail pages only for notices with a deadline on or after this date")
     ap.add_argument("--max-detail", type=int, default=60)
     ap.add_argument("--refetch-cut", action="store_true", help="re-read notices whose description was cut")
+    ap.add_argument("--refetch-open", action="store_true", help="re-read every listed notice still open")
     a = ap.parse_args()
     if os.path.exists(BLOCKED):
         sys.exit(f"BLOCKED file present: {open(BLOCKED).read().strip()}")
@@ -190,15 +198,22 @@ def main():
                 store[c["slug"]] = {**c, "first_seen": now, "detail": False}
             else:
                 old["last_seen"] = now
-                if c.get("deadline") and c["deadline"][:10] != (old.get("list_deadline") or "")[:10] \
-                        and old.get("list_deadline"):
-                    old["detail"] = False  # deadline moved: re-read the page
-                for k in ("title", "type", "description"):
+                if c.get("deadline") and c["deadline"] != old.get("list_deadline") and old.get("list_deadline"):
+                    old["detail"] = False  # deadline (day or hour) moved: re-read the page
+                if c.get("description") and old.get("list_description") \
+                        and c["description"] != old["list_description"]:
+                    old["detail"] = False  # card text changed: re-read the page
+                for k in ("title", "type"):
                     if c.get(k):
                         old[k] = c[k]
+                if c.get("description") and not old.get("detail"):
+                    old["description"] = c["description"]  # the detail page's (fuller) text wins once read
             rec = store[c["slug"]]
             rec["list_deadline"] = c.get("deadline")
+            rec["list_description"] = c.get("description")
             rec["last_seen"] = now
+            if a.refetch_open and (c.get("deadline") or "") >= now:
+                rec["detail"] = False
             if a.refetch_cut and (rec.get("description") or "").endswith(" […]"):
                 rec["detail"] = False
             if not rec.get("detail") and (c.get("deadline") or "9999") >= since:
