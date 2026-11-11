@@ -342,6 +342,9 @@ def main(outdir):
                 "url_avviso": "pagina ufficiale", "url_documenti": "link ai PDF ufficiali, separati da spazio",
                 "prima_vista": "il giorno in cui l'ho visto per la prima volta", "url_pagina": "la scheda su questo sito, se ancora pubblicata"}
         dati += [f"<li><code>{c}</code>: {e(cols[c])}</li>" for c in CSV_COLUMNS] + ["</ul>"]
+        dati.append("<p>Formato: UTF-8, separatore virgola, una riga per avviso; un campo vuoto vuol dire che il dato manca nell'elenco ufficiale. "
+                    "<code>importo</code> è il testo dell'avviso, non un numero. "
+                    "Excel: <b>Dati → Da testo/CSV</b>, scegli il file e la codifica UTF-8 (se lo apri con un doppio clic, con le impostazioni italiane le colonne non si separano).</p>")
         dati.append("<p><small>Per gli avvisi più vecchi (scaduti prima del 2026) ho letto solo l'elenco: regione, comune e importo possono mancare.</small></p>")
         # schema.org Dataset, so Google Dataset Search can list the CSVs. No "license": the source states none.
         ld = {"@context": "https://schema.org", "@type": "Dataset",
