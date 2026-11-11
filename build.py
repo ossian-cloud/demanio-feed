@@ -65,8 +65,43 @@ def slug(s):
 
 
 def kind(r):
-    t = f"{r.get('title', '')} {r.get('type', '')}".lower()
-    return next(k for k in KINDS if re.search(k[2], t))
+    """The title's word wins over the procedure type ('Avviso di locazione' for a concessione di valorizzazione)."""
+    t = (r.get("title") or "").lower()
+    found = next((k for k in KINDS[:-1] if re.search(k[2], t)), None)
+    return found or next(k for k in KINDS if re.search(k[2], f"{t} {r.get('type', '')}".lower()))
+
+
+def is_renewal(r):
+    return "rinnovo" in (r.get("type") or "").lower()
+
+
+# one line under each notice's facts; general, hedged: the notice itself is what counts
+GLOSS = {"vendita": "Vendita: lo Stato cede la proprietà del bene, di solito con un'asta; l'avviso indica il prezzo base e come si sceglie l'offerta migliore.",
+         "locazione": "Locazione: un affitto. Il bene resta dello Stato; chi lo ottiene lo usa per il periodo indicato e paga un canone.",
+         "concessione": "Concessione: il bene resta dello Stato; chi lo ottiene lo usa per il periodo e alle condizioni dell'avviso, di solito pagando un canone.",
+         "valorizzazione": "Di valorizzazione: un uso lungo (fino a 50 anni) in cambio del recupero e della gestione del bene, a spese di chi lo ottiene.",
+         "comodato": "Comodato d'uso: il bene viene dato in uso gratuito, alle condizioni dell'avviso.",
+         "altro": "Altro: avvisi che non sono né vendite né locazioni né concessioni, per esempio richieste di proposte.",
+         "rinnovo": "Pubblicità rinnovo: il bene è già usato da qualcuno che ha chiesto di rinnovare o regolarizzare l'uso; "
+                    "l'Agenzia lo rende pubblico e l'avviso dice se e come altri possono farsi avanti."}
+
+
+def gloss(r):
+    t = (r.get("title") or "").lower()
+    if is_renewal(r):
+        return GLOSS["rinnovo"]
+    if "valorizzazion" in t:
+        return GLOSS["valorizzazione"]
+    if "comodato" in t:
+        return GLOSS["comodato"]
+    return GLOSS[kind(r)[0]]
+
+
+def doc_kind(url):
+    ext = url.split("?")[0].rsplit(".", 1)[-1].lower()
+    return {"pdf": "PDF", "zip": "archivio ZIP", "jpg": "foto", "jpeg": "foto", "png": "foto", "docx": "Word",
+            "doc": "Word", "odt": "documento di testo", "odp": "presentazione", "ppt": "presentazione", "pptx": "presentazione",
+            "xlsx": "foglio di calcolo", "xls": "foglio di calcolo"}.get(ext, "file")
 
 
 def official(r):
@@ -129,7 +164,7 @@ def published(r):
 
 def facts(r):
     return [("Offerta", kind(r)[1]), ("Tipo di procedura", r.get("type")), ("Dove", place(r) or region_of(r)),
-            ("Regione", region_of(r)), ("Importo o canone indicato", r.get("amount")),
+            ("Regione", region_of(r)), ("Importo o canone indicato", r.get("amount") or "non indicato nell'elenco: vedi l'avviso"),
             ("Pubblicato il", when(r.get("published"), False)), ("Termine per le offerte", when(deadline(r))),
             ("Ufficio", r.get("office"))]
 
@@ -160,6 +195,8 @@ def item(r, depth=0):
     e = html.escape
     b = "../" * depth
     bits = [kind(r)[1], place(r)]
+    if is_renewal(r):
+        bits.append("rinnovo di un uso esistente")
     if r.get("amount"):
         bits.append(r["amount"])
     return (f'<li><a href="{b}{page_rel(r)}">{e(r["title"])}</a><br><small>'
@@ -171,7 +208,7 @@ def notice_page(outdir, r, now):
     e = html.escape
     closed = not is_open(r, now)
     rows = "".join(f"<tr><th scope=row>{e(k)}</th><td>{e(v)}</td></tr>" for k, v in facts(r) if v)
-    docs = "".join(f'<li><a href="{e(d["url"])}">{e(d["label"])}</a> <small>({e(d["name"])}, PDF sul sito del Demanio)</small></li>'
+    docs = "".join(f'<li><a href="{e(d["url"])}">{e(d["label"])}</a> <small>({e(d["name"])}, {doc_kind(d["url"])} sul sito del Demanio)</small></li>'
                    for d in r.get("docs") or [])
     body = [layout.crumbs([(page_rel(r), short(r["title"], 60))], 1), f"<h1>{e(r['title'])}</h1>"]
     if closed:
@@ -179,6 +216,7 @@ def notice_page(outdir, r, now):
     if r.get("description") and r["description"] != r["title"]:
         body.append(f"<p>{e(r['description'])}</p>")
     body.append(f'<table class="facts">{rows}</table>')
+    body.append(f'<p><small>{e(gloss(r))} <a href="../info.html#guida">Cosa significano i termini e come si partecipa</a>.</small></p>')
     body.append(f'<p><a class="btn" href="{e(official(r))}">Leggi l\'avviso ufficiale sul sito del Demanio</a></p>')
     if docs:
         body.append(f"<h2>Documenti</h2><ul>{docs}</ul>")
@@ -225,12 +263,14 @@ def main(outdir):
     plural = {"vendita": ("vendita", "vendite"), "locazione": ("locazione", "locazioni"),
               "concessione": ("concessione", "concessioni"), "altro": ("altro", "altri")}
     counts = ", ".join(f"{n} {plural[k][n != 1]}" for k, n in by_kind.items() if n)
+    fetched = dt.datetime.fromtimestamp(os.path.getmtime(DATA), ROME).strftime("%d/%m/%Y %H:%M")
     body = [f"<h1>Immobili dello Stato: vendite, affitti e concessioni</h1>",
             f"<p>Gli avvisi dell'<a href=\"{OFFICIAL_LIST}\">Agenzia del Demanio</a> per vendere, affittare o dare in concessione "
             "beni dello Stato (terreni, fabbricati, ex caserme, case cantoniere), in un'unica lista per regione, "
             f"con la scadenza in chiaro. Oggi <b>{len(open_)} avvisi aperti</b> ({counts}).</p>",
             '<p><a href="feed/tutti.xml">Feed Atom</a> · ' + ('<a href="dati.html">Dati CSV di tutti gli avvisi</a> · ' if CSV_LIVE else '') +
-            '<a href="info.html">Cosa contiene e limiti</a></p>']
+            '<a href="info.html">Cosa contiene e limiti</a> · <a href="info.html#guida">Guida: termini e come si partecipa</a></p>',
+            f"<p><small>Dati letti il {fetched}, una volta al giorno dal sito dell'Agenzia del Demanio.</small></p>"]
     closing = [r for r in open_ if dt.datetime.fromisoformat(deadline(r)[:10]).date() <= (now + dt.timedelta(days=14)).date()]
     if closing:
         body.append(f"<h2>In scadenza nei prossimi 14 giorni ({len(closing)})</h2><ul>" + "".join(item(r) for r in closing) + "</ul>")
@@ -241,11 +281,10 @@ def main(outdir):
     body.append("<h2>Per regione</h2><p>" + " · ".join(f'<a href="#{slug(g)}">{e(g)} ({len(regs[g])})</a>' for g in order) + "</p>")
     for g in order:
         body.append(f'<h3 id="{slug(g)}">{e(g)}</h3><ul>' + "".join(item(r) for r in regs[g]) + "</ul>")
-    fetched = dt.datetime.fromtimestamp(os.path.getmtime(DATA), ROME).strftime("%d/%m/%Y %H:%M")
-    body.append(f"<p><small>Dati letti il {fetched}, una volta al giorno dal sito dell'Agenzia del Demanio.</small></p>")
     emit(outdir, "index.html", "Immobili dello Stato in vendita, affitto e concessione · Demanio",
          f"{len(open_)} avvisi aperti dell'Agenzia del Demanio: vendite, aste, locazioni e concessioni di beni dello Stato, per regione e con la scadenza.",
-         "\n".join(body))
+         "\n".join(body),
+         extra_head='\n<link rel="alternate" type="application/atom+xml" title="Avvisi aperti del Demanio" href="feed/tutti.xml">')
 
     newest = sorted(open_, key=lambda r: (published(r), r["first_seen"]), reverse=True)[:MAX_ENTRIES]
     latest = max((x["updated"] for x in map(entry, newest)), default=now.isoformat(timespec="seconds"))
@@ -307,9 +346,19 @@ def main(outdir):
             "dell'Agenzia del Demanio e la pagina di ogni avviso nuovo. Non scarico i PDF: li collego.</p>",
             "<p><b>Fa fede l'avviso ufficiale.</b> Requisiti, garanzie, sopralluoghi e modalità di offerta sono solo lì. "
             "I miei dati possono essere in ritardo di un giorno, incompleti o sbagliati: controlla sempre la fonte.</p>",
-            "<p>Il «tipo di offerta» (vendita, locazione, concessione) lo deduco io dal titolo. "
+            "<p>Il «tipo di offerta» (vendita, locazione, concessione) lo deduco io dal titolo e, se il titolo non basta, dal tipo di procedura. "
             "Gli avvisi «Pubblicità rinnovo - formalizzazione utilizzo» riguardano beni già in uso a qualcuno: "
             "l'avviso dice se e come altri possono farsi avanti.</p>",
+            '<h2 id="guida">Guida in breve: i termini e come si partecipa</h2>',
+            "<p>Spiegazioni generali, non una consulenza: per ogni avviso valgono le regole scritte nell'avviso stesso.</p><ul>"]
+    info += [f"<li>{e(GLOSS[k])}</li>" for k in ("vendita", "locazione", "concessione", "valorizzazione", "comodato", "rinnovo", "altro")]
+    info += ["</ul>",
+             "<p><b>Come si partecipa, in generale.</b></p><ol>",
+             "<li>Leggi l'avviso ufficiale e gli allegati: requisiti, documenti da presentare, modello di domanda o di offerta.</li>",
+             "<li>Se l'avviso prevede un sopralluogo, prenotalo in tempo: a volte è obbligatorio.</li>",
+             "<li>Controlla se serve una cauzione o un deposito e in che forma.</li>",
+             "<li>Invia la domanda o l'offerta nel modo indicato (plico, PEC o piattaforma) entro il termine: conta anche l'ora, spesso le 12:00.</li>",
+             "<li>Per i dubbi scrivi all'ufficio (direzione territoriale) indicato nell'avviso.</li></ol>",
             "<p>Non pubblico nomi, indirizzi email o telefoni di persone: se una descrizione nomina un privato, la taglio prima del nome.</p>",
             "<p>Il sito dell'Agenzia non indica una licenza per questi contenuti: riporto solo i fatti essenziali di ogni avviso "
             "(cosa, dove, quando, a quale prezzo) citando sempre la fonte, con il link all'avviso ufficiale. "
