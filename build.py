@@ -199,7 +199,7 @@ def item(r, depth=0):
         bits.append("rinnovo di un uso esistente")
     if r.get("amount"):
         bits.append(r["amount"])
-    return (f'<li><a href="{b}{page_rel(r)}">{e(r["title"])}</a><br><small>'
+    return (f'<li data-k="{kind(r)[0]}"' + (' data-rinnovo="1"' if is_renewal(r) else "") + f'><a href="{b}{page_rel(r)}">{e(r["title"])}</a><br><small>'
             + " · ".join(e(x) for x in bits if x)
             + f' · offerte entro il <b>{e(when(deadline(r)))}</b></small></li>')
 
@@ -271,9 +271,15 @@ def main(outdir):
             '<p><a href="feed/tutti.xml">Feed Atom</a> · ' + ('<a href="dati.html">Dati CSV di tutti gli avvisi</a> · ' if CSV_LIVE else '') +
             '<a href="info.html">Cosa contiene e limiti</a> · <a href="info.html#guida">Guida: termini e come si partecipa</a></p>',
             f"<p><small>Dati letti il {fetched}, una volta al giorno dal sito dell'Agenzia del Demanio.</small></p>"]
+    # a small client-side filter (no cookies, nothing sent anywhere); without JS the full list shows
+    body.append('<form class="filtro" id="filtro" hidden><p><b>Mostra:</b> '
+                + " ".join(f'<label><input type="radio" name="k" value="{k}"{" checked" if not k else ""}> {lab}</label>'
+                           for k, lab in [("", "tutti")] + [(k, plural[k][1]) for k, n in by_kind.items() if n])
+                + ' · <label><input type="checkbox" name="r"> nascondi i rinnovi di usi esistenti</label></p>'
+                + '<p class="sr-only" role="status" id="filtro-n"></p></form>')
     closing = [r for r in open_ if dt.datetime.fromisoformat(deadline(r)[:10]).date() <= (now + dt.timedelta(days=14)).date()]
     if closing:
-        body.append(f"<h2>In scadenza nei prossimi 14 giorni ({len(closing)})</h2><ul>" + "".join(item(r) for r in closing) + "</ul>")
+        body.append(f'<h2>In scadenza nei prossimi 14 giorni (<span class="n">{len(closing)}</span>)</h2><ul>' + "".join(item(r) for r in closing) + "</ul>")
     regs = {}
     for r in open_:
         regs.setdefault(region_of(r) or "Più regioni o non indicata", []).append(r)
@@ -281,6 +287,24 @@ def main(outdir):
     body.append("<h2>Per regione</h2><p>" + " · ".join(f'<a href="#{slug(g)}">{e(g)} ({len(regs[g])})</a>' for g in order) + "</p>")
     for g in order:
         body.append(f'<h3 id="{slug(g)}">{e(g)}</h3><ul>' + "".join(item(r) for r in regs[g]) + "</ul>")
+    body.append("""<script>(function () {
+  var f = document.getElementById("filtro"), out = document.getElementById("filtro-n");
+  f.hidden = false;
+  function show() {
+    var k = f.querySelector("input[name=k]:checked").value, nr = f.r.checked, n = 0;
+    document.querySelectorAll("main li[data-k]").forEach(function (li) {
+      var ok = (!k || li.dataset.k == k) && !(nr && li.dataset.rinnovo); li.style.display = ok ? "" : "none";
+    });
+    document.querySelectorAll("main h2 + ul, main h3 + ul").forEach(function (ul) {
+      var m = 0; ul.querySelectorAll("li[data-k]").forEach(function (li) { if (li.style.display != "none") m++; });
+      ul.hidden = ul.previousElementSibling.hidden = !m;
+      var c = ul.previousElementSibling.querySelector(".n"); if (c) c.textContent = m;
+      if (ul.previousElementSibling.tagName == "H3") n += m;
+    });
+    out.textContent = n + (n == 1 ? " avviso" : " avvisi");
+  }
+  f.addEventListener("change", show);
+})();</script>""")
     emit(outdir, "index.html", "Immobili dello Stato in vendita, affitto e concessione · Demanio",
          f"{len(open_)} avvisi aperti dell'Agenzia del Demanio: vendite, aste, locazioni e concessioni di beni dello Stato, per regione e con la scadenza.",
          "\n".join(body),
