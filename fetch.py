@@ -235,9 +235,11 @@ def main():
         if d is None:
             print(f"no detail: {slug}")
             continue
+        changed = any(store[slug].get(k) != v for k, v in d.items())
         store[slug].update(d)
         store[slug]["detail"] = True
-        store[slug]["detail_at"] = now
+        if changed or not store[slug].get("detail_at"):
+            store[slug]["detail_at"] = now  # feed <updated>: only when the page really changed (daily re-reads)
         done += 1
         if done % 25 == 0:
             print(f"{done}/{min(len(todo), a.max_detail)}", flush=True)
