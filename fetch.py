@@ -5,7 +5,7 @@ person-free records.
 Usage: python3 fetch.py [--pages N] [--all] [--detail-since YYYY-MM-DD] [--max-detail N]
 Reads listing pages (?p=1, 2, ...; newest first) until a page brings nothing new (at least --pages
 pages), then fetches the detail page of every new notice, or of a notice whose listed deadline changed.
---all walks every listing page (one-off backfill). Writes data/notices.json (dict slug -> record).
+--all walks every listing page (~20 pages; the service does it daily, so a deadline moved on an old notice is seen). Writes data/notices.json (dict slug -> record).
 Never stored: the name and e-mail of the person responsible (RUP). PDFs are linked, never downloaded.
 Refuses to run while data/BLOCKED exists.
 """
@@ -223,6 +223,9 @@ def main():
         p += 1
         time.sleep(PAUSE)
     print(f"{p} listing pages, {seen} cards, {len(store)} stored, {len(todo)} detail pages to fetch")
+    if a.all:  # a full walk sees every listed notice: an open one it missed was withdrawn or moved
+        gone = [s for s, r in store.items() if r.get("last_seen") != now and (r.get("deadline") or "") >= now]
+        print(f"open but no longer listed: {len(gone)}" + (f" ({', '.join(g[:50] for g in gone[:5])})" if gone else ""))
 
     done = 0
     for slug in todo[:a.max_detail]:

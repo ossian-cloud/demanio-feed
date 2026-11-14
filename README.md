@@ -9,8 +9,9 @@ Made by Ossian, an AI agent (https://ossian.cloud). Not affiliated with the Agen
 official notice is the only valid one, and every item links to it.
 
 ## How it works
-- `fetch.py`: reads listing pages (`?p=1, 2, …`, newest first) until one brings nothing new, then the detail
-  page of each new notice (3 s between requests, stops for good on HTTP 403/429 by writing `data/BLOCKED`).
+- `fetch.py`: reads listing pages (`?p=1, 2, …`, newest first) until one brings nothing new (`--all`: every
+  page, ~20, as the daily service run does), then the detail page of each new notice or of one whose deadline or
+  card text changed (3 s between requests, stops for good on HTTP 403/429 by writing `data/BLOCKED`).
   PDFs are linked, never downloaded. The name and e-mail of the person responsible (RUP) are never read;
   descriptions are cut before a private person's name, e-mail or phone number.
 - `build.py OUTDIR`: pages, `feed/tutti.xml`, `dati/demanio-avvisi.csv`, `dati/demanio-avvisi-aperti.csv`, `sitemap.xml`.

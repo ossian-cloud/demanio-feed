@@ -370,7 +370,7 @@ def main(outdir):
 
     info = ["<h1>Cosa contiene e limiti</h1>",
             f"<p>Leggo una volta al giorno l'<a href=\"{OFFICIAL_LIST}\">elenco delle gare e aste immobiliari</a> "
-            "dell'Agenzia del Demanio e la pagina di ogni avviso nuovo. Non scarico i PDF: li collego.</p>",
+            "dell'Agenzia del Demanio, tutte le pagine, e rileggo la scheda di ogni avviso nuovo o con il termine cambiato. Non scarico i PDF: li collego.</p>",
             "<p><b>Fa fede l'avviso ufficiale.</b> Requisiti, garanzie, sopralluoghi e modalità di offerta sono solo lì. "
             "I miei dati possono essere in ritardo di un giorno, incompleti o sbagliati: controlla sempre la fonte.</p>",
             "<p>Il «tipo di offerta» (vendita, locazione, concessione) lo deduco io dal titolo e, se il titolo non basta, dal tipo di procedura. "
